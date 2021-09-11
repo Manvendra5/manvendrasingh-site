@@ -2,6 +2,7 @@
 
 :root {
   --primary-color: #1db954;
+  --off-white: #e4e4e7;
   --dark-gray: #a3a3a3;
 }
 
@@ -89,4 +90,18 @@ hr {
 .hero .hero-heading {
   color: var(--dark-gray);
   text-align: center;
+}
+
+/** Sections **/
+
+.section {
+  padding: 2rem;
+}
+
+.section h1 {
+  text-align: center;
+}
+
+.ow {
+  background-color: var(--off-white);
 }
