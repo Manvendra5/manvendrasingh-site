@@ -105,3 +105,20 @@ hr {
 .ow {
   background-color: var(--off-white);
 }
+
+/** Footer **/
+.footer {
+  background-color: var(--primary-color);
+  color: white;
+  padding: 2rem;
+  border-top-right-radius: 0.5rem;
+  text-align: center;
+}
+
+.footer .link {
+  color: white;
+}
+
+.footer .social-links {
+  padding-inline-start: 0px;
+}
