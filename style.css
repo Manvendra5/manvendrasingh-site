@@ -1,13 +1,15 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;1,400&family=Quicksand:wght@300;400&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Quicksand:wght@500&family=Roboto+Slab&display=swap");
 
 :root {
   --primary-color: #1db954;
-  --off-white: #e4e4e7;
-  --dark-gray: #a3a3a3;
+  --off-white: #f3f4f6;
+  --dark-gray: #6b7280;
 }
 
 body {
-  font-family: "IBM Plex Sans", sans-serif;
+  font-family: "Roboto Slab", serif;
+  max-width: 85%;
+  margin: 0px auto;
 }
 
 .container {
@@ -16,7 +18,8 @@ body {
 }
 
 .container-center {
-  max-width: 600px;
+  max-width: 900px;
+  width: 100%;
   margin: auto;
 }
 
@@ -28,7 +31,10 @@ hr {
 .link {
   text-decoration: none;
   border-radius: 0.5rem;
-  padding: 1rem 1rem;
+  padding: 0.8rem 0.8rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  display: inline-block;
 }
 
 .link-primary {
@@ -41,9 +47,16 @@ hr {
   color: var(--primary-color);
 }
 
+.link-without-decoration {
+  text-decoration: none;
+  color: white;
+}
+
 /** Lists **/
 .list-non-bullet {
   list-style: none;
+  padding-inline-start: 0px;
+  margin-block-end: 0px;
 }
 
 .list-item-inline {
@@ -51,12 +64,21 @@ hr {
   padding: 0rem 0.5rem;
 }
 
+.list-item-container {
+  padding: 1rem;
+  text-align: center;
+  border-radius: 1rem;
+  margin-top: 1rem;
+  margin-bottom: 3rem;
+}
+
 /** Navigation **/
 .navigation {
   background-color: var(--primary-color);
   color: white;
   padding: 1rem;
-  border-bottom-left-radius: 0.5rem;
+  border-bottom-left-radius: 1rem;
+  margin-bottom: 2rem;
 }
 
 .navigation .nav-head {
@@ -82,7 +104,7 @@ hr {
 }
 
 .hero .hero-img {
-  max-width: 350px;
+  max-width: 450px;
   display: block;
   margin: auto;
 }
@@ -95,10 +117,9 @@ hr {
 /** Sections **/
 
 .section {
+  margin-top: 2rem;
   padding: 2rem;
-}
-
-.section h1 {
+  border-radius: 1rem;
   text-align: center;
 }
 
@@ -110,9 +131,15 @@ hr {
 .footer {
   background-color: var(--primary-color);
   color: white;
+  margin-top: 2rem;
   padding: 2rem;
-  border-top-right-radius: 0.5rem;
+  border-top-right-radius: 1rem;
   text-align: center;
+}
+
+.footer .footer-header {
+  font-weight: bold;
+  font-size: large;
 }
 
 .footer .link {
@@ -121,4 +148,56 @@ hr {
 
 .footer .social-links {
   padding-inline-start: 0px;
+}
+
+/** Blog Styling **/
+
+.blog-container {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.blog-container-center {
+  max-width: 700px;
+  width: 100%;
+  margin: auto;
+}
+
+div .blog-paragraph {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+div .blog-h2 {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+}
+
+div .blog-img {
+  width: 100%;
+  display: block;
+}
+
+div .blog-head {
+  padding: 1rem;
+}
+
+/** blog footer **/
+
+.blog-footer {
+  color: Black;
+  margin-top: 2rem;
+  padding: 2rem;
+  border-top-right-radius: 1rem;
+  text-align: center;
+}
+
+.blog-footer .link {
+  color: blue;
+}
+
+.main-head {
+  font-weight: normal;
+  margin-bottom: 0.5rem;
 }
