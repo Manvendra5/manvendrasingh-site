@@ -19,5 +19,3 @@ Project link: [https://github.com/Manvendra5/manvendrasingh-site](https://github
 -[netlify](https://www.netlify.com/)
 
 -[CSS-TRICKS](https://css-tricks.com/)
-
--[neoG.camp](https://neog.camp/)
