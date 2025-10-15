@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>React Performance Optimization Techniques</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <div class="blog-container blog-container-center" style="margin-top: 5rem">
+    <h1 class="main-head">React Performance Optimization Techniques</h1>
+    <strong>April 15, 2025</strong>
+    <header class="blog-head">
+      <img class="blog-img"
+        src="https://images.unsplash.com/photo-1617040619263-41c5a9ca7521?ixlib=rb-4.0.3"
+        alt="Web Performance" />
+    </header>
+
+    <hr />
+
+    <p class="blog-paragraph">
+      Performance optimization is crucial for building responsive React applications. This guide covers advanced techniques to optimize your React applications for better performance and user experience.
+    </p>
+
+    <h2 class="blog-h2">1. Memoization Techniques</h2>
+    
+    <h3 class="blog-h3">Using React.memo</h3>
+    <pre class="code-block">
+import { memo } from 'react';
+
+// Before optimization
+const ExpensiveComponent = ({ data }) => {
+  // Heavy computations
+  return &lt;div&gt;{/* Rendered content */}&lt;/div&gt;
+};
+
+// After optimization
+const OptimizedComponent = memo(({ data }) => {
+  return &lt;div&gt;{/* Rendered content */}&lt;/div&gt;
+}, (prevProps, nextProps) => {
+  // Custom comparison function
+  return prevProps.data.id === nextProps.data.id;
+});
+    </pre>
+
+    <h3 class="blog-h3">useMemo for Expensive Calculations</h3>
+    <pre class="code-block">
+import { useMemo } from 'react';
+
+function DataGrid({ items, filter }) {
+  const filteredItems = useMemo(() => {
+    return items.filter(item => 
+      item.name.toLowerCase().includes(filter.toLowerCase())
+    );
+  }, [items, filter]); // Only recalculate when items or filter changes
+
+  return (
+    &lt;div&gt;
+      {filteredItems.map(item => (
+        &lt;Item key={item.id} data={item} /&gt;
+      ))}
+    &lt;/div&gt;
+  );
+}
+    </pre>
+
+    <h2 class="blog-h2">2. Code Splitting and Lazy Loading</h2>
+    <p class="blog-paragraph">
+      Implement code splitting to reduce the initial bundle size:
+    </p>
+    <pre class="code-block">
+import { lazy, Suspense } from 'react';
+
+// Lazy load components
+const HeavyComponent = lazy(() => 
+  import('./HeavyComponent')
+);
+
+function App() {
+  return (
+    &lt;Suspense fallback={&lt;Loading /&gt;}&gt;
+      &lt;HeavyComponent /&gt;
+    &lt;/Suspense&gt;
+  );
+}
+
+// Route-based code splitting
+const Routes = [
+  {
+    path: '/dashboard',
+    component: lazy(() => import('./pages/Dashboard'))
+  },
+  {
+    path: '/profile',
+    component: lazy(() => import('./pages/Profile'))
+  }
+];
+    </pre>
+
+    <h2 class="blog-h2">3. Virtual Lists for Large Datasets</h2>
+    <p class="blog-paragraph">
+      Implement virtualization for efficient list rendering:
+    </p>
+    <pre class="code-block">
+import { FixedSizeList } from 'react-window';
+
+function VirtualizedList({ items }) {
+  const Row = ({ index, style }) => (
+    &lt;div style={style}&gt;
+      &lt;ListItem data={items[index]} /&gt;
+    &lt;/div&gt;
+  );
+
+  return (
+    &lt;FixedSizeList
+      height={400}
+      width={600}
+      itemCount={items.length}
+      itemSize={50}
+    &gt;
+      {Row}
+    &lt;/FixedSizeList&gt;
+  );
+}
+    </pre>
+
+    <h2 class="blog-h2">4. State Management Optimization</h2>
+    <p class="blog-paragraph">
+      Optimize state updates and context usage:
+    </p>
+    <pre class="code-block">
+// Split context to prevent unnecessary rerenders
+const UserContext = createContext();
+const ThemeContext = createContext();
+
+function App() {
+  const [user, setUser] = useState(null);
+  const [theme, setTheme] = useState('light');
+
+  return (
+    &lt;UserContext.Provider value={user}&gt;
+      &lt;ThemeContext.Provider value={theme}&gt;
+        &lt;Content /&gt;
+      &lt;/ThemeContext.Provider&gt;
+    &lt;/UserContext.Provider&gt;
+  );
+}
+
+// Use selector pattern with Redux
+const UserProfile = () => {
+  const userData = useSelector(state => state.user.data);
+  const userStatus = useSelector(state => state.user.status);
+  
+  return (/* render profile */);
+};
+    </pre>
+
+    <h2 class="blog-h2">5. Debouncing and Throttling</h2>
+    <p class="blog-paragraph">
+      Implement debouncing for input handling:
+    </p>
+    <pre class="code-block">
+import { useCallback, useState } from 'react';
+import debounce from 'lodash/debounce';
+
+function SearchComponent() {
+  const [results, setResults] = useState([]);
+
+  const debouncedSearch = useCallback(
+    debounce(async (query) => {
+      const data = await fetchSearchResults(query);
+      setResults(data);
+    }, 300),
+    []
+  );
+
+  return (
+    &lt;input
+      type="text"
+      onChange={(e) => debouncedSearch(e.target.value)}
+    /&gt;
+  );
+}
+    </pre>
+
+    <h2 class="blog-h2">6. Image Optimization</h2>
+    <p class="blog-paragraph">
+      Optimize image loading and display:
+    </p>
+    <pre class="code-block">
+import { LazyLoadImage } from 'react-lazy-load-image-component';
+
+function Gallery({ images }) {
+  return (
+    &lt;div&gt;
+      {images.map(image => (
+        &lt;LazyLoadImage
+          key={image.id}
+          src={image.url}
+          effect="blur"
+          placeholder={&lt;div className="loading" /&gt;}
+          width={300}
+          height={200}
+        /&gt;
+      ))}
+    &lt;/div&gt;
+  );
+}
+    </pre>
+
+    <h2 class="blog-h2">7. Web Workers for Heavy Computations</h2>
+    <pre class="code-block">
+// worker.js
+self.addEventListener('message', (e) => {
+  const result = heavyComputation(e.data);
+  self.postMessage(result);
+});
+
+// React component
+function DataProcessor() {
+  const [result, setResult] = useState(null);
+  const worker = useRef();
+
+  useEffect(() => {
+    worker.current = new Worker('worker.js');
+    worker.current.onmessage = (e) => {
+      setResult(e.data);
+    };
+
+    return () => worker.current.terminate();
+  }, []);
+
+  const processData = (data) => {
+    worker.current.postMessage(data);
+  };
+
+  return (/* render component */);
+}
+    </pre>
+
+    <h2 class="blog-h2">8. Performance Monitoring</h2>
+    <p class="blog-paragraph">
+      Implement performance monitoring:
+    </p>
+    <pre class="code-block">
+import { Profiler } from 'react';
+
+function onRenderCallback(
+  id, // the "id" prop of the Profiler tree that has just committed
+  phase, // either "mount" (if the tree just mounted) or "update" (if it re-rendered)
+  actualDuration, // time spent rendering the committed update
+  baseDuration, // estimated time to render the entire subtree without memoization
+  startTime, // when React began rendering this update
+  commitTime, // when React committed this update
+  interactions // the Set of interactions belonging to this update
+) {
+  // Log performance metrics
+  console.log({
+    id,
+    phase,
+    actualDuration,
+    baseDuration
+  });
+}
+
+function App() {
+  return (
+    &lt;Profiler id="App" onRender={onRenderCallback}&gt;
+      &lt;Content /&gt;
+    &lt;/Profiler&gt;
+  );
+}
+    </pre>
+
+    <h2 class="blog-h2">Best Practices Summary</h2>
+    <ul style="line-height: 2">
+      <li>Use memoization judiciously</li>
+      <li>Implement code splitting for large applications</li>
+      <li>Virtualize long lists</li>
+      <li>Optimize context usage</li>
+      <li>Use debouncing for frequent updates</li>
+      <li>Implement proper error boundaries</li>
+      <li>Monitor performance regularly</li>
+    </ul>
+
+    <h2 class="blog-h2">Conclusion</h2>
+    <p class="blog-paragraph">
+      Performance optimization in React requires a combination of techniques and best practices. By implementing these optimizations thoughtfully, you can significantly improve your application's performance and user experience.
+    </p>
+
+    <p class="blog-paragraph">
+      Remember that premature optimization can lead to unnecessary complexity. Always measure performance first and optimize only when needed. Use React Developer Tools and performance monitoring to identify bottlenecks before applying optimizations.
+    </p>
+  </div>
+</body>
+
+</html>

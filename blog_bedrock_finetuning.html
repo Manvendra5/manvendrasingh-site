@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fine-tuning LLMs with Amazon Bedrock: A Practical Guide</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <div class="blog-container blog-container-center" style="margin-top: 5rem">
+    <h1 class="main-head">Fine-tuning LLMs with Amazon Bedrock: A Practical Guide</h1>
+    <strong>September 15, 2025</strong>
+    <header class="blog-head">
+      <img class="blog-img"
+        src="https://images.unsplash.com/photo-1620712943543-bcc4688e7485?ixlib=rb-4.0.3"
+        alt="AI Model Training" />
+    </header>
+
+    <hr />
+
+    <p class="blog-paragraph">
+      Amazon Bedrock provides a seamless way to fine-tune Large Language Models (LLMs) for specific use cases. This guide covers the complete process of fine-tuning LLMs using Amazon Bedrock, from data preparation to deployment.
+    </p>
+
+    <h2 class="blog-h2">Getting Started with Amazon Bedrock</h2>
+    <p class="blog-paragraph">
+      First, let's set up our development environment and initialize Bedrock:
+    </p>
+    <pre class="code-block">
+import boto3
+import json
+from botocore.config import Config
+
+def initialize_bedrock():
+    config = Config(
+        region_name='us-west-2',
+        retries={'max_attempts': 3}
+    )
+    
+    bedrock = boto3.client(
+        service_name='bedrock',
+        config=config
+    )
+    return bedrock
+
+bedrock_client = initialize_bedrock()
+    </pre>
+
+    <h2 class="blog-h2">Data Preparation for Fine-tuning</h2>
+    <p class="blog-paragraph">
+      Proper data preparation is crucial for effective fine-tuning:
+    </p>
+    <pre class="code-block">
+import pandas as pd
+
+def prepare_training_data(data_path):
+    df = pd.read_csv(data_path)
+    
+    # Format data for fine-tuning
+    training_data = []
+    for _, row in df.iterrows():
+        example = {
+            "prompt": row['input_text'],
+            "completion": row['target_text'],
+            "context": row.get('context', '')
+        }
+        training_data.append(example)
+    
+    return training_data
+
+# Save formatted data
+def save_to_s3(training_data, bucket, key):
+    s3 = boto3.client('s3')
+    s3.put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=json.dumps(training_data)
+    )
+    </pre>
+
+    <h2 class="blog-h2">Fine-tuning Configuration</h2>
+    <p class="blog-paragraph">
+      Configure the fine-tuning job with appropriate parameters:
+    </p>
+    <pre class="code-block">
+def create_fine_tuning_job(
+    training_data_path,
+    model_id="anthropic.claude-v2",
+    training_config=None
+):
+    if training_config is None:
+        training_config = {
+            "epochs": 3,
+            "batch_size": 8,
+            "learning_rate": 2e-5,
+            "warmup_steps": 100
+        }
+
+    job_config = {
+        "modelId": model_id,
+        "trainingDataConfig": {
+            "s3Uri": training_data_path
+        },
+        "hyperParameters": training_config,
+        "outputConfig": {
+            "s3OutputUri": "s3://your-bucket/model-output/"
+        }
+    }
+
+    response = bedrock_client.create_model_customization_job(
+        jobConfig=job_config
+    )
+    return response['jobArn']
+    </pre>
+
+    <h2 class="blog-h2">Monitoring Fine-tuning Progress</h2>
+    <p class="blog-paragraph">
+      Track the progress of your fine-tuning job:
+    </p>
+    <pre class="code-block">
+def monitor_fine_tuning(job_arn):
+    while True:
+        response = bedrock_client.get_model_customization_job(
+            jobArn=job_arn
+        )
+        
+        status = response['status']
+        metrics = response.get('metrics', {})
+        
+        print(f"Status: {status}")
+        print(f"Loss: {metrics.get('loss', 'N/A')}")
+        print(f"Accuracy: {metrics.get('accuracy', 'N/A')}")
+        
+        if status in ['Completed', 'Failed']:
+            break
+        
+        time.sleep(300)  # Check every 5 minutes
+    </pre>
+
+    <h2 class="blog-h2">Model Evaluation</h2>
+    <p class="blog-paragraph">
+      Evaluate the fine-tuned model's performance:
+    </p>
+    <pre class="code-block">
+def evaluate_model(model_id, test_prompts):
+    results = []
+    
+    for prompt in test_prompts:
+        response = bedrock_client.invoke_model(
+            modelId=model_id,
+            contentType='application/json',
+            accept='application/json',
+            body=json.dumps({
+                "prompt": prompt,
+                "max_tokens": 500,
+                "temperature": 0.7
+            })
+        )
+        
+        output = json.loads(response['body'].read())
+        results.append({
+            'prompt': prompt,
+            'response': output['completion']
+        })
+    
+    return results
+
+def calculate_metrics(results, ground_truth):
+    # Calculate ROUGE, BLEU, or custom metrics
+    metrics = {
+        'rouge_l': calculate_rouge(results, ground_truth),
+        'bleu': calculate_bleu(results, ground_truth)
+    }
+    return metrics
+    </pre>
+
+    <h2 class="blog-h2">Deployment and Inference</h2>
+    <p class="blog-paragraph">
+      Deploy and use your fine-tuned model:
+    </p>
+    <pre class="code-block">
+def deploy_model(model_id):
+    response = bedrock_client.create_model_endpoint(
+        modelId=model_id,
+        endpointConfig={
+            'instanceType': 'ml.g4dn.xlarge',
+            'initialInstanceCount': 1
+        }
+    )
+    return response['endpointArn']
+
+def generate_text(prompt, model_endpoint):
+    response = bedrock_client.invoke_endpoint(
+        endpointName=model_endpoint,
+        contentType='application/json',
+        body=json.dumps({
+            "prompt": prompt,
+            "max_tokens": 500
+        })
+    )
+    
+    return json.loads(response['body'].read())['completion']
+    </pre>
+
+    <h2 class="blog-h2">Cost Optimization</h2>
+    <p class="blog-paragraph">
+      Implement these strategies to optimize costs during fine-tuning:
+    </p>
+    <ul style="line-height: 2">
+      <li>Use smaller validation datasets during initial experiments</li>
+      <li>Implement early stopping</li>
+      <li>Monitor training metrics to avoid unnecessary epochs</li>
+      <li>Choose appropriate instance types</li>
+    </ul>
+
+    <h2 class="blog-h2">Best Practices</h2>
+    <p class="blog-paragraph">
+      Follow these best practices for successful fine-tuning:
+    </p>
+    <ul style="line-height: 2">
+      <li>Clean and validate training data thoroughly</li>
+      <li>Start with small experiments and scale up</li>
+      <li>Monitor training metrics closely</li>
+      <li>Implement proper error handling</li>
+      <li>Version control your training data and configurations</li>
+    </ul>
+
+    <h2 class="blog-h2">Error Handling and Logging</h2>
+    <pre class="code-block">
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def safe_fine_tune(config):
+    try:
+        job_arn = create_fine_tuning_job(**config)
+        logger.info(f"Started fine-tuning job: {job_arn}")
+        
+        monitor_fine_tuning(job_arn)
+        
+    except Exception as e:
+        logger.error(f"Fine-tuning failed: {str(e)}")
+        raise
+    </pre>
+
+    <h2 class="blog-h2">Conclusion</h2>
+    <p class="blog-paragraph">
+      Fine-tuning LLMs with Amazon Bedrock provides a powerful way to customize models for specific use cases. By following these best practices and implementing proper monitoring and evaluation, you can create highly effective custom language models.
+    </p>
+
+    <p class="blog-paragraph">
+      Remember to always consider cost optimization, data quality, and proper evaluation metrics when fine-tuning models. The success of your fine-tuning project depends heavily on the quality of your training data and the careful monitoring of the training process.
+    </p>
+  </div>
+</body>
+
+</html>

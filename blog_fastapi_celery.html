@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FastAPI and Celery Integration: Building Scalable Async Systems</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <div class="blog-container blog-container-center" style="margin-top: 5rem">
+    <h1 class="main-head">FastAPI and Celery Integration: Building Scalable Async Systems</h1>
+    <strong>March 10, 2025</strong>
+    <header class="blog-head">
+      <img class="blog-img"
+        src="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?ixlib=rb-4.0.3"
+        alt="Distributed Systems" />
+    </header>
+
+    <hr />
+
+    <p class="blog-paragraph">
+      Integrating FastAPI with Celery creates a powerful combination for building scalable, asynchronous web applications.
+      This guide shows you how to effectively combine these technologies for optimal performance.
+    </p>
+
+    <h2 class="blog-h2">Project Structure</h2>
+    <pre class="code-block">
+project/
+├── app/
+│   ├── __init__.py
+│   ├── main.py
+│   ├── celery_app.py
+│   ├── config.py
+│   └── tasks/
+│       ├── __init__.py
+│       └── background_tasks.py
+├── tests/
+├── requirements.txt
+└── docker-compose.yml
+    </pre>
+
+    <h2 class="blog-h2">1. Basic Setup</h2>
+    <p class="blog-paragraph">First, let's set up the core components:</p>
+    
+    <h3 class="blog-h3">Config (config.py)</h3>
+    <pre class="code-block">
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    REDIS_URL: str = "redis://localhost:6379/0"
+    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
+    
+    class Config:
+        env_file = ".env"
+
+settings = Settings()
+    </pre>
+
+    <h3 class="blog-h3">Celery Setup (celery_app.py)</h3>
+    <pre class="code-block">
+from celery import Celery
+from app.config import settings
+
+celery_app = Celery(
+    "worker",
+    broker=settings.CELERY_BROKER_URL,
+    backend=settings.CELERY_RESULT_BACKEND,
+    include=['app.tasks.background_tasks']
+)
+
+celery_app.conf.update(
+    task_serializer='json',
+    accept_content=['json'],
+    result_serializer='json',
+    timezone='UTC',
+    enable_utc=True,
+)
+    </pre>
+
+    <h2 class="blog-h2">2. Implementing Background Tasks</h2>
+    <p class="blog-paragraph">Define your Celery tasks:</p>
+
+    <h3 class="blog-h3">Background Tasks (background_tasks.py)</h3>
+    <pre class="code-block">
+from app.celery_app import celery_app
+from celery import group, chain
+import time
+
+@celery_app.task(name="process_data")
+def process_data(data: dict):
+    # Simulate long processing
+    time.sleep(5)
+    return {"processed": data}
+
+@celery_app.task(name="send_notification")
+def send_notification(email: str, message: str):
+    # Implement notification logic
+    return {"status": "sent", "recipient": email}
+
+# Complex task workflow
+@celery_app.task(name="complex_workflow")
+def complex_workflow(data: dict):
+    workflow = chain(
+        process_data.s(data),
+        send_notification.s("user@example.com")
+    )
+    return workflow()
+    </pre>
+
+    <h2 class="blog-h2">3. FastAPI Integration</h2>
+    <p class="blog-paragraph">Create FastAPI endpoints that utilize Celery tasks:</p>
+
+    <h3 class="blog-h3">Main Application (main.py)</h3>
+    <pre class="code-block">
+from fastapi import FastAPI, BackgroundTasks
+from app.celery_app import celery_app
+from app.tasks.background_tasks import process_data, send_notification
+from celery.result import AsyncResult
+
+app = FastAPI()
+
+@app.post("/process")
+async def start_processing(data: dict):
+    task = process_data.delay(data)
+    return {"task_id": task.id}
+
+@app.get("/status/{task_id}")
+async def get_status(task_id: str):
+    task = AsyncResult(task_id)
+    return {
+        "task_id": task_id,
+        "status": task.status,
+        "result": task.result if task.ready() else None
+    }
+
+@app.post("/notify")
+async def notify(email: str, message: str):
+    task = send_notification.delay(email, message)
+    return {"task_id": task.id}
+    </pre>
+
+    <h2 class="blog-h2">4. Advanced Task Patterns</h2>
+    <p class="blog-paragraph">Implement advanced Celery patterns:</p>
+
+    <h3 class="blog-h3">Periodic Tasks</h3>
+    <pre class="code-block">
+from celery.schedules import crontab
+
+celery_app.conf.beat_schedule = {
+    'daily-cleanup': {
+        'task': 'app.tasks.background_tasks.cleanup',
+        'schedule': crontab(hour=0, minute=0),
+    },
+    'health-check': {
+        'task': 'app.tasks.background_tasks.health_check',
+        'schedule': 300.0,  # every 5 minutes
+    }
+}
+    </pre>
+
+    <h3 class="blog-h3">Task Routing</h3>
+    <pre class="code-block">
+celery_app.conf.task_routes = {
+    'app.tasks.background_tasks.process_data': {'queue': 'processing'},
+    'app.tasks.background_tasks.send_notification': {'queue': 'notifications'}
+}
+    </pre>
+
+    <h2 class="blog-h2">5. Error Handling and Retries</h2>
+    <pre class="code-block">
+from celery.exceptions import MaxRetriesExceededError
+
+@celery_app.task(
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60
+)
+def reliable_task(self, data):
+    try:
+        # Potentially failing operation
+        result = process_data(data)
+        return result
+    except Exception as exc:
+        try:
+            self.retry(exc=exc)
+        except MaxRetriesExceededError:
+            # Handle final failure
+            return {"status": "failed", "error": str(exc)}
+    </pre>
+
+    <h2 class="blog-h2">6. Monitoring and Logging</h2>
+    <pre class="code-block">
+import logging
+from celery.signals import task_success, task_failure
+
+logger = logging.getLogger(__name__)
+
+@task_success.connect
+def task_success_handler(sender=None, **kwargs):
+    logger.info(
+        f"Task {sender.name} completed successfully: {kwargs['result']}"
+    )
+
+@task_failure.connect
+def task_failure_handler(sender=None, **kwargs):
+    logger.error(
+        f"Task {sender.name} failed: {kwargs['exception']}"
+    )
+    </pre>
+
+    <h2 class="blog-h2">7. Performance Optimization</h2>
+    <p class="blog-paragraph">
+      Implement these strategies for optimal performance:
+    </p>
+    <ul style="line-height: 2">
+      <li>Use task queues effectively</li>
+      <li>Implement proper task routing</li>
+      <li>Configure worker pools appropriately</li>
+      <li>Monitor and adjust concurrency</li>
+    </ul>
+
+    <pre class="code-block">
+# Worker configuration
+worker_config = {
+    'task_annotations': {
+        'tasks.critical': {'rate_limit': '10/m'},
+        'tasks.background': {'rate_limit': '100/m'}
+    },
+    'worker_prefetch_multiplier': 1,
+    'worker_concurrency': 4,
+}
+
+celery_app.conf.update(worker_config)
+    </pre>
+
+    <h2 class="blog-h2">8. Docker Setup</h2>
+    <p class="blog-paragraph">Docker Compose configuration for the complete stack:</p>
+
+    <pre class="code-block">
+# docker-compose.yml
+version: '3.8'
+
+services:
+  web:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --reload
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+
+  worker:
+    build: .
+    command: celery -A app.celery_app worker -l info
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  flower:
+    build: .
+    command: celery -A app.celery_app flower
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - worker
+    </pre>
+
+    <h2 class="blog-h2">Best Practices</h2>
+    <ul style="line-height: 2">
+      <li>Keep tasks small and focused</li>
+      <li>Use task routing for workload distribution</li>
+      <li>Implement proper error handling and retries</li>
+      <li>Monitor task queues and worker performance</li>
+      <li>Use task results expiration</li>
+      <li>Implement proper logging and monitoring</li>
+    </ul>
+
+    <h2 class="blog-h2">Conclusion</h2>
+    <p class="blog-paragraph">
+      Integrating FastAPI with Celery provides a robust foundation for building scalable, asynchronous applications. By
+      following these patterns and best practices, you can create efficient systems that handle background processing
+      effectively.
+    </p>
+
+    <p class="blog-paragraph">
+      Remember to monitor your task queues, implement proper error handling, and scale your worker pools based on your
+      workload characteristics. The combination of FastAPI's speed and Celery's distributed task processing capabilities
+      makes it an excellent choice for modern web applications.
+    </p>
+  </div>
+</body>
+
+</html>

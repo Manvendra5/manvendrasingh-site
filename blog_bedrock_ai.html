@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Building AI-Powered Applications with Amazon Bedrock</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <div class="blog-container blog-container-center" style="margin-top: 5rem">
+    <h1 class="main-head">Building AI-Powered Applications with Amazon Bedrock</h1>
+    <strong>September 5, 2025</strong>
+    <header class="blog-head">
+      <img class="blog-img"
+        src="https://images.unsplash.com/photo-1677442136019-21780ecad995?ixlib=rb-4.0.3"
+        alt="AI Applications" />
+    </header>
+
+    <hr />
+
+    <p class="blog-paragraph">
+      Amazon Bedrock provides a unified API to access various foundation models. This guide will show you how to build
+      production-ready AI applications using Bedrock's capabilities.
+    </p>
+
+    <h2 class="blog-h2">Setting Up Amazon Bedrock</h2>
+    <pre class="code-block">
+import boto3
+import json
+
+def initialize_bedrock():
+    bedrock_runtime = boto3.client(
+        service_name='bedrock-runtime',
+        region_name='us-west-2'
+    )
+    return bedrock_runtime
+
+# Initialize client
+bedrock = initialize_bedrock()
+    </pre>
+
+    <h2 class="blog-h2">1. Text Generation with Claude</h2>
+    <pre class="code-block">
+def generate_text(prompt, max_tokens=500):
+    body = json.dumps({
+        "prompt": prompt,
+        "max_tokens_to_sample": max_tokens,
+        "temperature": 0.7,
+        "top_p": 0.9,
+    })
+
+    response = bedrock.invoke_model(
+        modelId='anthropic.claude-v2',
+        contentType='application/json',
+        accept='application/json',
+        body=body
+    )
+    
+    response_body = json.loads(response['body'].read())
+    return response_body['completion']
+
+# Example usage
+response = generate_text(
+    "Write a summary of quantum computing"
+)
+    </pre>
+
+    <h2 class="blog-h2">2. Building a Smart Document Analysis System</h2>
+    <pre class="code-block">
+from typing import List
+import fitz  # PyMuPDF
+
+class DocumentAnalyzer:
+    def __init__(self, bedrock_client):
+        self.bedrock = bedrock_client
+
+    def extract_text_from_pdf(self, pdf_path: str) -> str:
+        doc = fitz.open(pdf_path)
+        text = ""
+        for page in doc:
+            text += page.get_text()
+        return text
+
+    def analyze_document(self, text: str) -> dict:
+        prompt = f"""
+        Analyze the following document and extract:
+        1. Key topics
+        2. Main arguments
+        3. Conclusions
+        
+        Document: {text[:2000]}...
+        """
+        
+        response = self.generate_text(prompt)
+        return self._parse_analysis(response)
+
+    def generate_questions(self, context: str) -> List[str]:
+        prompt = f"""
+        Generate 5 relevant questions based on:
+        {context[:1000]}...
+        """
+        
+        response = self.generate_text(prompt)
+        return response.split('\n')
+    </pre>
+
+    <h2 class="blog-h2">3. Implementing a Language Translation Service</h2>
+    <pre class="code-block">
+class TranslationService:
+    def __init__(self, bedrock_client):
+        self.bedrock = bedrock_client
+        self.supported_languages = ['en', 'es', 'fr', 'de', 'it']
+
+    def translate(self, text: str, source_lang: str, target_lang: str) -> str:
+        if not all(lang in self.supported_languages 
+                  for lang in [source_lang, target_lang]):
+            raise ValueError("Unsupported language")
+
+        prompt = f"""
+        Translate the following {source_lang} text to {target_lang}:
+        {text}
+        """
+
+        response = self.generate_text(prompt)
+        return response.strip()
+
+    async def batch_translate(self, texts: List[str], 
+                            source_lang: str, target_lang: str) -> List[str]:
+        translations = []
+        for text in texts:
+            translation = await self.translate(text, source_lang, target_lang)
+            translations.append(translation)
+        return translations
+    </pre>
+
+    <h2 class="blog-h2">4. Creating a Contextual Chatbot</h2>
+    <pre class="code-block">
+class ContextualChatbot:
+    def __init__(self, bedrock_client):
+        self.bedrock = bedrock_client
+        self.conversation_history = []
+        self.max_history = 10
+
+    def add_to_history(self, role: str, content: str):
+        self.conversation_history.append({
+            "role": role,
+            "content": content
+        })
+        
+        if len(self.conversation_history) > self.max_history:
+            self.conversation_history.pop(0)
+
+    def generate_response(self, user_input: str) -> str:
+        # Format conversation history
+        formatted_history = "\n".join(
+            f"{msg['role']}: {msg['content']}"
+            for msg in self.conversation_history
+        )
+
+        prompt = f"""
+        Previous conversation:
+        {formatted_history}
+
+        User: {user_input}
+        Assistant:"""
+
+        response = self.generate_text(prompt)
+        
+        # Update conversation history
+        self.add_to_history("user", user_input)
+        self.add_to_history("assistant", response)
+        
+        return response
+    </pre>
+
+    <h2 class="blog-h2">5. Content Moderation System</h2>
+    <pre class="code-block">
+class ContentModerator:
+    def __init__(self, bedrock_client):
+        self.bedrock = bedrock_client
+        self.categories = [
+            'hate_speech',
+            'violence',
+            'adult_content',
+            'harassment'
+        ]
+
+    def analyze_content(self, text: str) -> dict:
+        prompt = f"""
+        Analyze the following content for inappropriate material:
+        {text}
+        
+        Provide a JSON response with:
+        1. Overall safety score (0-1)
+        2. Detected categories
+        3. Recommendation (allow/block/review)
+        """
+
+        response = self.generate_text(prompt)
+        return json.loads(response)
+
+    async def batch_moderate(self, texts: List[str]) -> List[dict]:
+        results = []
+        for text in texts:
+            result = await self.analyze_content(text)
+            results.append(result)
+        return results
+    </pre>
+
+    <h2 class="blog-h2">6. Code Generation and Analysis</h2>
+    <pre class="code-block">
+class CodeAssistant:
+    def __init__(self, bedrock_client):
+        self.bedrock = bedrock_client
+
+    def generate_code(self, description: str, language: str) -> str:
+        prompt = f"""
+        Generate {language} code for:
+        {description}
+        
+        Provide:
+        1. Implementation
+        2. Usage example
+        3. Error handling
+        """
+
+        return self.generate_text(prompt)
+
+    def review_code(self, code: str) -> dict:
+        prompt = f"""
+        Review the following code and provide:
+        1. Potential bugs
+        2. Security issues
+        3. Performance improvements
+        4. Best practice violations
+
+        Code:
+        {code}
+        """
+
+        response = self.generate_text(prompt)
+        return self._parse_review(response)
+    </pre>
+
+    <h2 class="blog-h2">7. Error Handling and Retries</h2>
+    <pre class="code-block">
+import time
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+class BedrockWrapper:
+    def __init__(self, bedrock_client):
+        self.bedrock = bedrock_client
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10)
+    )
+    def generate_with_retry(self, prompt: str) -> str:
+        try:
+            return self.generate_text(prompt)
+        except Exception as e:
+            print(f"Error: {str(e)}")
+            raise
+
+    def safe_generate(self, prompt: str, 
+                     fallback_response: str = None) -> str:
+        try:
+            return self.generate_with_retry(prompt)
+        except Exception:
+            return fallback_response or "Sorry, I'm having trouble right now."
+    </pre>
+
+    <h2 class="blog-h2">8. Performance Optimization</h2>
+    <p class="blog-paragraph">
+      Implement these strategies to optimize your Bedrock applications:
+    </p>
+    <ul style="line-height: 2">
+      <li>Use batch processing for multiple requests</li>
+      <li>Implement caching for frequent queries</li>
+      <li>Optimize prompt engineering</li>
+      <li>Use async/await for concurrent requests</li>
+    </ul>
+
+    <pre class="code-block">
+from functools import lru_cache
+import asyncio
+
+class OptimizedBedrockClient:
+    def __init__(self, bedrock_client):
+        self.bedrock = bedrock_client
+
+    @lru_cache(maxsize=1000)
+    def cached_generate(self, prompt: str) -> str:
+        return self.generate_text(prompt)
+
+    async def batch_generate(self, prompts: List[str]) -> List[str]:
+        tasks = [
+            self.generate_text(prompt)
+            for prompt in prompts
+        ]
+        return await asyncio.gather(*tasks)
+    </pre>
+
+    <h2 class="blog-h2">9. Monitoring and Logging</h2>
+    <pre class="code-block">
+import logging
+from datetime import datetime
+
+class BedrockMonitor:
+    def __init__(self):
+        self.logger = logging.getLogger('bedrock_monitor')
+        self.metrics = {
+            'requests': 0,
+            'errors': 0,
+            'latency': []
+        }
+
+    def log_request(self, prompt: str, response: str, 
+                   duration: float, status: str):
+        self.metrics['requests'] += 1
+        self.metrics['latency'].append(duration)
+        
+        if status == 'error':
+            self.metrics['errors'] += 1
+
+        self.logger.info(
+            f"Request: {len(prompt)} chars, "
+            f"Response: {len(response)} chars, "
+            f"Duration: {duration:.2f}s, "
+            f"Status: {status}"
+        )
+
+    def get_metrics(self) -> dict:
+        avg_latency = (
+            sum(self.metrics['latency']) / 
+            len(self.metrics['latency'])
+            if self.metrics['latency'] else 0
+        )
+        
+        return {
+            'total_requests': self.metrics['requests'],
+            'error_rate': (
+                self.metrics['errors'] / 
+                self.metrics['requests'] 
+                if self.metrics['requests'] else 0
+            ),
+            'avg_latency': avg_latency
+        }
+    </pre>
+
+    <h2 class="blog-h2">Conclusion</h2>
+    <p class="blog-paragraph">
+      Amazon Bedrock provides a powerful platform for building AI-powered applications. By following these patterns and best
+      practices, you can create robust, scalable applications that effectively leverage foundation models.
+    </p>
+
+    <p class="blog-paragraph">
+      Remember to implement proper error handling, monitoring, and optimization strategies. Keep your prompts clear and
+      concise, and always consider the performance implications of your implementation choices.
+    </p>
+  </div>
+</body>
+
+</html>
