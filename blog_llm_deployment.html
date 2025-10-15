@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LLM Model Deployment Best Practices on SageMaker</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <div class="blog-container blog-container-center" style="margin-top: 5rem">
+    <h1 class="main-head">LLM Model Deployment Best Practices on SageMaker</h1>
+    <strong>August 25, 2025</strong>
+    <header class="blog-head">
+      <img class="blog-img"
+        src="https://images.unsplash.com/photo-1518932945647-7a1c969f8be2?ixlib=rb-4.0.3"
+        alt="AI Deployment" />
+    </header>
+
+    <hr />
+
+    <p class="blog-paragraph">
+      Deploying Large Language Models (LLMs) in production requires careful consideration of performance, scaling, and
+      monitoring. This guide covers best practices for deploying LLMs on Amazon SageMaker.
+    </p>
+
+    <h2 class="blog-h2">1. Model Optimization Techniques</h2>
+    
+    <h3 class="blog-h3">Quantization</h3>
+    <pre class="code-block">
+from transformers import AutoModelForCausalLM
+import torch
+
+def quantize_model(model_path):
+    # Load model
+    model = AutoModelForCausalLM.from_pretrained(model_path)
+    
+    # Quantize to 8-bit
+    model_8bit = torch.quantization.quantize_dynamic(
+        model,
+        {torch.nn.Linear},
+        dtype=torch.qint8
+    )
+    
+    return model_8bit
+
+# Save quantized model
+def save_optimized_model(model, path):
+    torch.save({
+        'model_state_dict': model.state_dict(),
+        'config': model.config
+    }, path)
+    </pre>
+
+    <h3 class="blog-h3">Model Pruning</h3>
+    <pre class="code-block">
+from torch.nn.utils import prune
+
+def prune_model(model, amount=0.3):
+    for name, module in model.named_modules():
+        if isinstance(module, torch.nn.Linear):
+            prune.l1_unstructured(
+                module,
+                name='weight',
+                amount=amount
+            )
+    return model
+    </pre>
+
+    <h2 class="blog-h2">2. Custom SageMaker Container</h2>
+    <pre class="code-block">
+# Dockerfile
+FROM pytorch/pytorch:latest
+
+# Install dependencies
+RUN pip install transformers accelerate
+RUN pip install sagemaker-training
+
+# Copy inference code
+COPY inference.py /opt/ml/code/inference.py
+
+# Optimize container
+ENV TORCH_CUDA_ARCH_LIST="7.0 7.5 8.0"
+ENV TORCH_CUDA_ARCH_LIST="$TORCH_CUDA_ARCH_LIST 8.6"
+
+# Entry point
+ENTRYPOINT ["python", "/opt/ml/code/inference.py"]
+    </pre>
+
+    <h2 class="blog-h2">3. Efficient Inference Handler</h2>
+    <pre class="code-block">
+import json
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
+class ModelHandler:
+    def __init__(self):
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.tokenizer = None
+        self.model = None
+
+    def initialize(self, context):
+        # Load model and tokenizer
+        model_path = context.model_dir
+        self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_path,
+            device_map='auto',
+            torch_dtype=torch.float16
+        )
+        
+    def inference(self, data):
+        # Parse input
+        input_text = data.pop('inputs', data)
+        
+        # Tokenize
+        inputs = self.tokenizer(
+            input_text,
+            return_tensors='pt',
+            padding=True,
+            truncation=True
+        ).to(self.device)
+        
+        # Generate
+        with torch.no_grad():
+            outputs = self.model.generate(
+                **inputs,
+                max_length=100,
+                num_return_sequences=1
+            )
+            
+        # Decode
+        response = self.tokenizer.batch_decode(
+            outputs,
+            skip_special_tokens=True
+        )
+        
+        return response
+    </pre>
+
+    <h2 class="blog-h2">4. Auto-scaling Configuration</h2>
+    <pre class="code-block">
+import boto3
+import sagemaker
+
+def configure_autoscaling(endpoint_name, max_capacity=4):
+    client = boto3.client('application-autoscaling')
+    
+    # Register scalable target
+    client.register_scalable_target(
+        ServiceNamespace='sagemaker',
+        ResourceId=f'endpoint/{endpoint_name}/variant/AllTraffic',
+        ScalableDimension='sagemaker:variant:DesiredInstanceCount',
+        MinCapacity=1,
+        MaxCapacity=max_capacity
+    )
+    
+    # Configure scaling policy
+    client.put_scaling_policy(
+        PolicyName=f'{endpoint_name}-scaling-policy',
+        ServiceNamespace='sagemaker',
+        ResourceId=f'endpoint/{endpoint_name}/variant/AllTraffic',
+        ScalableDimension='sagemaker:variant:DesiredInstanceCount',
+        PolicyType='TargetTrackingScaling',
+        TargetTrackingScalingPolicyConfiguration={
+            'TargetValue': 70.0,
+            'PredefinedMetricSpecification': {
+                'PredefinedMetricType': 'SageMakerVariantInvocationsPerInstance'
+            },
+            'ScaleInCooldown': 300,
+            'ScaleOutCooldown': 300
+        }
+    )
+    </pre>
+
+    <h2 class="blog-h2">5. Performance Monitoring</h2>
+    <pre class="code-block">
+import cloudwatch
+from datetime import datetime, timedelta
+
+class ModelMonitor:
+    def __init__(self, endpoint_name):
+        self.cloudwatch = boto3.client('cloudwatch')
+        self.endpoint_name = endpoint_name
+
+    def get_metrics(self, hours=1):
+        end_time = datetime.utcnow()
+        start_time = end_time - timedelta(hours=hours)
+        
+        metrics = self.cloudwatch.get_metric_data(
+            MetricDataQueries=[
+                {
+                    'Id': 'invocations',
+                    'MetricStat': {
+                        'Metric': {
+                            'Namespace': 'AWS/SageMaker',
+                            'MetricName': 'Invocations',
+                            'Dimensions': [{
+                                'Name': 'EndpointName',
+                                'Value': self.endpoint_name
+                            }]
+                        },
+                        'Period': 300,
+                        'Stat': 'Sum'
+                    }
+                },
+                {
+                    'Id': 'latency',
+                    'MetricStat': {
+                        'Metric': {
+                            'Namespace': 'AWS/SageMaker',
+                            'MetricName': 'ModelLatency',
+                            'Dimensions': [{
+                                'Name': 'EndpointName',
+                                'Value': self.endpoint_name
+                            }]
+                        },
+                        'Period': 300,
+                        'Stat': 'Average'
+                    }
+                }
+            ],
+            StartTime=start_time,
+            EndTime=end_time
+        )
+        
+        return metrics
+    </pre>
+
+    <h2 class="blog-h2">6. Batch Transform for Large-Scale Inference</h2>
+    <pre class="code-block">
+def setup_batch_transform(model_name, 
+                         input_path,
+                         output_path,
+                         instance_type='ml.g4dn.xlarge',
+                         instance_count=1):
+    transformer = sagemaker.transformer.Transformer(
+        model_name=model_name,
+        instance_count=instance_count,
+        instance_type=instance_type,
+        output_path=output_path,
+        strategy='SingleRecord',
+        assemble_with='Line',
+        accept='application/json',
+        max_concurrent_transforms=4
+    )
+    
+    transformer.transform(
+        data=input_path,
+        split_type='Line',
+        content_type='application/json',
+        job_name=f'{model_name}-batch-{int(time.time())}'
+    )
+    </pre>
+
+    <h2 class="blog-h2">7. A/B Testing Setup</h2>
+    <pre class="code-block">
+def create_ab_test_endpoint(
+    model_a_name,
+    model_b_name,
+    endpoint_name,
+    model_a_weight=0.5
+):
+    client = boto3.client('sagemaker')
+    
+    # Create endpoint config
+    response = client.create_endpoint_config(
+        EndpointConfigName=f'{endpoint_name}-config',
+        ProductionVariants=[
+            {
+                'VariantName': 'ModelA',
+                'ModelName': model_a_name,
+                'InitialInstanceCount': 1,
+                'InstanceType': 'ml.g4dn.xlarge',
+                'InitialVariantWeight': model_a_weight
+            },
+            {
+                'VariantName': 'ModelB',
+                'ModelName': model_b_name,
+                'InitialInstanceCount': 1,
+                'InstanceType': 'ml.g4dn.xlarge',
+                'InitialVariantWeight': 1 - model_a_weight
+            }
+        ]
+    )
+    
+    # Create endpoint
+    client.create_endpoint(
+        EndpointName=endpoint_name,
+        EndpointConfigName=f'{endpoint_name}-config'
+    )
+    </pre>
+
+    <h2 class="blog-h2">8. Cost Optimization Strategies</h2>
+    <ul style="line-height: 2">
+      <li>Use appropriate instance types based on workload</li>
+      <li>Implement proper auto-scaling</li>
+      <li>Use batch transform for large-scale inference</li>
+      <li>Monitor and optimize resource utilization</li>
+      <li>Consider multi-model endpoints for low-traffic models</li>
+    </ul>
+
+    <h2 class="blog-h2">9. Security Best Practices</h2>
+    <pre class="code-block">
+def configure_security(endpoint_name):
+    # Configure VPC
+    vpc_config = {
+        'SecurityGroupIds': ['sg-xxxxxxxxxxxxx'],
+        'Subnets': ['subnet-xxxxxxxxxxxxx']
+    }
+    
+    # Configure encryption
+    kms_key = 'arn:aws:kms:region:account:key/key-id'
+    
+    # Create endpoint config with security settings
+    client.create_endpoint_config(
+        EndpointConfigName=f'{endpoint_name}-secure-config',
+        ProductionVariants=[{
+            'ModelName': model_name,
+            'InitialInstanceCount': 1,
+            'InstanceType': 'ml.g4dn.xlarge'
+        }],
+        VpcConfig=vpc_config,
+        KmsKeyId=kms_key
+    )
+    </pre>
+
+    <h2 class="blog-h2">Conclusion</h2>
+    <p class="blog-paragraph">
+      Successful LLM deployment on SageMaker requires careful consideration of multiple factors including model optimization,
+      scaling, monitoring, and security. By following these best practices, you can ensure reliable and efficient model
+      serving in production.
+    </p>
+
+    <p class="blog-paragraph">
+      Remember to continuously monitor your deployments, optimize costs, and maintain security standards. Regular review and
+      updates of your deployment strategy will help ensure optimal performance and resource utilization.
+    </p>
+  </div>
+</body>
+
+</html>
